@@ -6,15 +6,9 @@ using UnityEditor;
 
 public class LoopNode : BaseNode
 {
-    public LoopNode(Vector2 position,
-        Action<BaseNode> OnClickSelf,
-        Action<ConnectionPoint> OnClickInPoint,
-        Action<ConnectionPoint> OnClickOutPoint) : base(position, OnClickSelf, OnClickInPoint, OnClickOutPoint)
+    public LoopNode() : base()
     {
-        type = "LoopNode";
-
+        type = NodeType.LoopNode;
         desc = "LoopNode desc...";
-
-        InitLogic();
     }
 }

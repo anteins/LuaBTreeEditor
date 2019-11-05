@@ -3,24 +3,17 @@ using UnityEngine;
 
 public enum ConnectionPointType { In, Out }
 
-public class ConnectionPoint
+public class ConnectionPoint : BTObject
 {
     public Rect rect;
-
     public ConnectionPointType type;
-
     public BaseNode node;
-
     public GUIStyle style;
 
-    public Action<ConnectionPoint> OnClickConnectionPoint;
-
-    private bool _isClickingDown;
-
-    private int click_count = 0;
-
-    public ConnectionPoint(BaseNode node, ConnectionPointType type, Action<ConnectionPoint> OnClickConnectionPoint)
+    public ConnectionPoint(BaseNode node, ConnectionPointType type)
     {
+        base.GenId();
+
         this.node = node;
         this.type = type;
         switch (this.type)
@@ -33,14 +26,12 @@ public class ConnectionPoint
                 this.style = BTEditorWindow.outPointStyle;
                 break;
         }
-        this.OnClickConnectionPoint = OnClickConnectionPoint;
-        rect = new Rect(0, 0, 10f, 20f);
+        this.rect = new Rect(0, 0, 10f, 20f);
     }
 
     public void Draw()
     {
         rect.y = node.rect.y + (node.rect.height * 0.5f) - rect.height * 0.5f;
-
         switch (type)
         {
             case ConnectionPointType.In:
@@ -54,16 +45,7 @@ public class ConnectionPoint
 
         if (GUI.Button(rect, "", style))
         {
-            if (OnClickConnectionPoint != null)
-            {
-                OnClickConnectionPoint(this);
-            }
-        }
-
-        if (_isClickingDown)
-        {
-            click_count = click_count + 1;
-            Debug.Log("_isClickingDown" + click_count);
+            ProcessEvents(Event.current);
         }
     }
 
@@ -71,13 +53,20 @@ public class ConnectionPoint
     {
         switch (e.type)
         {
-            case EventType.MouseDown:
+            case EventType.Used:
                 if (rect.Contains(e.mousePosition))
                 {
                     if (e.button == 0)
                     {
-                        Debug.Log("[ConnectionPoint] Click Down!");
-                        _isClickingDown = true;
+                        switch (type)
+                        {
+                            case ConnectionPointType.In:
+                                BTEditorManager.OnClickInPoint(this);
+                                break;
+                            case ConnectionPointType.Out:
+                                BTEditorManager.OnClickOutPoint(this);
+                                break;
+                        }
                         GUI.changed = true;
                     }
                 }
@@ -88,15 +77,11 @@ public class ConnectionPoint
                 break;
 
             case EventType.MouseUp:
-                Debug.Log("[ConnectionPoint] Click Up!");
-                _isClickingDown = false;
-                click_count = 0;
                 break;
 
             case EventType.MouseDrag:
                 break;
         }
-
         return false;
     }
 }

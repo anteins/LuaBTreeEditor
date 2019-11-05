@@ -6,15 +6,9 @@ using UnityEditor;
 
 public class ActionNode : BaseNode
 {
-    public ActionNode(Vector2 position,
-        Action<BaseNode> OnClickSelf,
-        Action<ConnectionPoint> OnClickInPoint,
-        Action<ConnectionPoint> OnClickOutPoint) : base(position, OnClickSelf, OnClickInPoint, OnClickOutPoint)
+    public ActionNode() : base()
     {
-        type = "ActionNode";
-
+        type = NodeType.ActionNode;
         desc = "ActionNode desc...";
-
-        InitLogic();
     }
 }

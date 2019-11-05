@@ -6,15 +6,9 @@ using UnityEditor;
 
 public class SequenceNode : BaseNode
 {
-    public SequenceNode(Vector2 position,
-        Action<BaseNode> OnClickSelf,
-        Action<ConnectionPoint> OnClickInPoint,
-        Action<ConnectionPoint> OnClickOutPoint) : base(position, OnClickSelf, OnClickInPoint, OnClickOutPoint)
+    public SequenceNode() : base()
     {
-        type = "SequenceNode";
-
+        type = NodeType.SequenceNode;
         desc = "SequenceNode desc...";
-
-        InitLogic();
     }
 }

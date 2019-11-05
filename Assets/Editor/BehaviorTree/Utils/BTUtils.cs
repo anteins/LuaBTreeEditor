@@ -24,10 +24,11 @@ public class BTUtils
 
     public static void DumpTree(BaseNode node, Action<BaseNode> action = null)
     {
+        if (node == null)
+            return;
+
         if(action != null)
-        {
             action(node);
-        }
 
         if (node.childs.Count > 0)
         {
@@ -40,7 +41,7 @@ public class BTUtils
 
     public static void RemoveTree(BaseNode node)
     {
-        NodeData.Remove(node);
+        NodeDataManager.Remove(node);
         if (node.childs.Count > 0)
         {
             for (int i = 0; i < node.childs.Count; i++)
@@ -126,6 +127,7 @@ public class BTUtils
         {
             SaveFileByte(buff, savePath);
         }
+        Debug.Log("±£´æµ½ " + savePath);
     }
 
     /// <summary>

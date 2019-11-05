@@ -3,54 +3,50 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
+public enum SubViewType
+{
+    None,
+    Node,
+    Connection,
+}
+
 public class BTEditorWindow : EditorWindow
 {
     private float menuBarHeight = 20f;
     private Rect menuBar;
 
     public static GUIStyle nodeStyle;
-
     public static GUIStyle selectedNodeStyle;
 
     public static GUIStyle inPointStyle;
-
     public static GUIStyle outPointStyle;
 
     public static BTEditorWindow _window;
-
-    private Vector3 scrollPos = Vector2.zero;
-
-    private List<Vector2> _v2FieldList = new List<Vector2>();
-
     public Rect window_Rect;
-
     public Rect subWindow_Rect;
+    private Vector2 m_ScrollPosition;
 
-    private static BaseNode current_node = null;
+    private static SubViewType _curSubView = SubViewType.None;
+    private static string _subTitle = string.Empty;
+    //Properties View
+    private static List<string> _properties_remove_list = new List<string>();
+    //Slots View
+    private static List<SlotData> _slots_remove_list = new List<SlotData>();
 
-    private static Dictionary<string, List<string>> current_properties = new Dictionary<string, List<string>>();
-
-    private static List<string> current_properties_remove_list = new List<string>();
-
-    private static int current_properties_total_id = 0;
-
-    private static string current_description = "";
-
-    private static string current_title = "";
-
-    private EditorGUILayout scale = null;
-
-    [MenuItem("行为树/显示窗口")]
-    public static void ShowWindow ()
+    [MenuItem("节点/显示窗口")]
+    public static void ShowWindow()
     {
         if (_window == null)
         {
             _window = EditorWindow.GetWindow<BTEditorWindow>();
         }
-        
+
         Reset();
         Vector2 initPosition = new Vector2(10, _window.position.height / 2 - 25);
-        BaseNode root = BTEditorManager.AddRootNode(initPosition);
+        //BaseNode root = BTEditorManager.AddRootNode(initPosition);
+
+        NodeDataManager.Reset();
+        BTEditorManager.Reset();
     }
 
     private void OnEnable()
@@ -76,33 +72,25 @@ public class BTEditorWindow : EditorWindow
         outPointStyle.border = new RectOffset(4, 4, 12, 12);
     }
 
-    public void ProcessContextMenu(Vector2 mousePosition)
+    public static void ProcessContextMenu(Vector2 mousePosition)
     {
         GenericMenu genericMenu = new GenericMenu();
-        genericMenu.AddItem(new GUIContent("Add RootNode"), false, () => BTEditorManager.AddRootNode(mousePosition));
+        //genericMenu.AddItem(new GUIContent("Add RootNode"), false, () => BTEditorManager.AddRootNode(mousePosition));
+        genericMenu.AddItem(new GUIContent("Add ExcelNode"), false, () => BTEditorManager.AddNode<ExcelNode>(mousePosition));
         genericMenu.AddItem(new GUIContent("Add ActionNode"), false, () => BTEditorManager.AddNode<ActionNode>(mousePosition));
         genericMenu.AddItem(new GUIContent("Add ConditionNode"), false, () => BTEditorManager.AddNode<ConditionNode>(mousePosition));
         genericMenu.AddItem(new GUIContent("Add WaitNode"), false, () => BTEditorManager.AddNode<WaitNode>(mousePosition));
         genericMenu.AddItem(new GUIContent("Add SequenceNode"), false, () => BTEditorManager.AddNode<SequenceNode>(mousePosition));
         genericMenu.AddItem(new GUIContent("Add SelectorNode"), false, () => BTEditorManager.AddNode<SelectorNode>(mousePosition));
         genericMenu.AddItem(new GUIContent("Add LoopNode"), false, () => BTEditorManager.AddNode<LoopNode>(mousePosition));
-        
+
         genericMenu.ShowAsContext();
     }
 
-    // Update is called once per frame
     public void OnGUI ()
     {
         DrawWindowUI();
-
         ProcessMainEvents(Event.current);
-
-        //if (GUI.changed)
-        //{
-
-
-        //}
-
         Repaint();
     }
 
@@ -110,13 +98,10 @@ public class BTEditorWindow : EditorWindow
     {
         DrawMenuBar();
 
-        BeginWindows();
-
+        BeginWindows();//Begin Render
         DrawNodeWindow();
-
         BTEditorManager.Draw();
-
-        EndWindows();
+        EndWindows();//End Render
     }
 
     private void DrawMenuBar()
@@ -144,7 +129,7 @@ public class BTEditorWindow : EditorWindow
 
         if (GUILayout.Button(new GUIContent("Print"), EditorStyles.toolbarButton, GUILayout.Width(35)))
         {
-            BTUtils.DumpTree(BTEditorManager.root_node);
+            BTUtils.DumpTree(BTEditorManager.rootNode);
         }
 
         GUILayout.EndHorizontal();
@@ -157,83 +142,152 @@ public class BTEditorWindow : EditorWindow
         {
             _window = EditorWindow.GetWindow<BTEditorWindow>();
         }
-        subWindow_Rect = GUI.Window(22, new Rect(_window.position.width * 2 / 3, 0, _window.position.width / 3, _window.position.height), DrawSubUI, "node info");
+        subWindow_Rect = GUI.Window(22, new Rect(_window.position.width * 2 / 3, 0, _window.position.width / 3, _window.position.height), DrawSubUI, _subTitle);
     }
 
     public void DrawSubUI(int id)
     {
-        //title
-        GUILayout.Space(20);
-        GUILayout.BeginHorizontal();
-        GUILayout.Label("Title", GUILayout.MaxWidth(80));
-        current_title = EditorGUILayout.TextArea(current_title, GUILayout.MaxHeight(25));
-        GUILayout.EndHorizontal();
-
-        //desc
-        GUILayout.Space(20);
-        GUILayout.BeginHorizontal();
-        GUILayout.Label("Description", GUILayout.MaxWidth(80));
-        current_description = EditorGUILayout.TextArea(current_description, GUILayout.MaxHeight(75));
-        GUILayout.EndHorizontal();
-
-        foreach (string key in current_properties.Keys)
+        if (BTEditorManager.selectedNode == null && BTEditorManager.selectedConnection == null)
         {
-            GUILayout.BeginHorizontal("properties");
-            current_properties[key][0] = EditorGUILayout.TextArea(current_properties[key][0], GUILayout.MaxHeight(25));
-            current_properties[key][1] = EditorGUILayout.TextArea(current_properties[key][1], GUILayout.MaxHeight(25));
-            if (GUILayout.Button("-", GUILayout.MaxWidth(30)))
+            GUILayout.Label("没有选中任何节点", GUILayout.MaxWidth(180));
+            return;
+        }
+
+        m_ScrollPosition = GUILayout.BeginScrollView(m_ScrollPosition, GUILayout.Width(subWindow_Rect.width - 15), GUILayout.Height(400));
+        switch (_curSubView)
+        {
+            case SubViewType.Node:
+                DrawProperties();
+                var node = BTEditorManager.selectedNode;
+                if (node.properties != null)
+                {
+                    BTEditorManager.SaveCurrentNode();
+                }
+                break;
+            case SubViewType.Connection:
+                DrawSlots();
+                var connection = BTEditorManager.selectedConnection;
+                if (connection.slotList != null)
+                {
+                    BTEditorManager.SaveCurrentConnection();
+                }
+                break;
+            default:
+                break;
+        }
+        GUI.changed = true;
+        GUILayout.EndScrollView();
+    }
+
+    private void DrawProperties()
+    {
+        var node = BTEditorManager.selectedNode;
+        GUILayout.Space(20);
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("Name", GUILayout.MaxWidth(80));
+        node.name = EditorGUILayout.TextArea(node.name, GUILayout.MaxHeight(25));
+        GUILayout.EndHorizontal();
+
+        if(BTEditorManager.selectedNode.type == NodeType.ExcelNode)
+        {
+            ExcelNode excelNode = (ExcelNode)BTEditorManager.selectedNode;
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("File", GUILayout.MaxWidth(80));
+            excelNode.file = EditorGUILayout.TextArea(excelNode.file, GUILayout.MaxHeight(25));
+            GUILayout.EndHorizontal();
+        }
+
+        GUILayout.Label("Properties");
+        foreach (string key in node.properties.Keys)
+        {
+            GUILayout.BeginHorizontal("");
+            node.properties[key][0] = EditorGUILayout.TextArea(node.properties[key][0], GUILayout.MaxHeight(25));
+            node.properties[key][1] = EditorGUILayout.TextArea(node.properties[key][1], GUILayout.MaxHeight(25));
+            if (GUILayout.Button("-", GUILayout.MaxWidth(50)))
             {
-                current_properties_remove_list.Add(key);
+                _properties_remove_list.Add(key);
             }
             GUILayout.EndHorizontal();
         }
-        for(int i =0; i< current_properties_remove_list.Count; i++)
+
+        for (int i = 0; i < _properties_remove_list.Count; i++)
         {
-            string remove_key = current_properties_remove_list[i];
-            current_properties.Remove(remove_key);
+            string remove_key = _properties_remove_list[i];
+            node.properties.Remove(remove_key);
             GUI.changed = true;
         }
-        current_properties_remove_list.Clear();
 
-        if (GUILayout.Button("+", GUILayout.MaxWidth(30)))
+        _properties_remove_list.Clear();
+        if (GUILayout.Button("+", GUILayout.MaxWidth(50)))
         {
-            if (current_node != null)
-            {
-                if (current_properties != null && current_properties.Count < 7)
-                {
-                    current_properties_total_id = current_properties_total_id + 1;
-                    current_properties.Add(current_properties_total_id.ToString(), new List<string> { string.Format("New_{0}", current_properties_total_id.ToString()), "Default" });
-                    GUI.changed = true;
-                }
-            }
-        }
-
-        if (GUILayout.Button("Apply", GUILayout.MaxWidth(subWindow_Rect.width)))
-        {
-            BTEditorManager.UpdateCurrentNode(current_title, current_description, current_properties);
+            int count = node.properties.Count + 1;
+            node.properties.Add(count.ToString(), new List<string> { string.Format("Properties_{0}", count.ToString()), "Default" });
+            GUI.changed = true;
         }
     }
 
-    public static void OnSelectNode(BaseNode node)
+    private void DrawSlots()
     {
-        current_node = node;
-        NodeLuaInfo logic = NodeData.Get(current_node);
-        current_title = logic.title;
-        current_description = logic.desc;
-        current_properties = logic.Properties;
-        current_properties_total_id = logic.Properties_total_id;
-        
-        //Debug.Log(string.Format("当前node \nid:{0} \nname:{1} \ntitle:{2} \ndesc:{3}", logic.id, logic.name, logic.title, logic.desc));
+        var connection = BTEditorManager.selectedConnection;
+        GUILayout.Space(20);
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("Name", GUILayout.MaxWidth(80));
+        connection.connectId = EditorGUILayout.TextArea(connection.connectId, GUILayout.MaxHeight(25));
+        GUILayout.EndHorizontal();
+
+        GUILayout.Label("Slots");
+        for (int i = 0; i < connection.slotList.Count; i++)
+        {
+            GUILayout.BeginHorizontal("");
+            connection.slotList[i].out_slot = EditorGUILayout.TextArea(connection.slotList[i].out_slot, GUILayout.MaxHeight(25));
+            connection.slotList[i].in_slot = EditorGUILayout.TextArea(connection.slotList[i].in_slot, GUILayout.MaxHeight(25));
+
+            if (GUILayout.Button("-", GUILayout.MaxWidth(50)))
+            {
+                _slots_remove_list.Add(connection.slotList[i]);
+            }
+            GUILayout.EndHorizontal();
+        }
+
+        for (int i = 0; i < _slots_remove_list.Count; i++)
+        {
+            SlotData remove_key = _slots_remove_list[i];
+            connection.slotList.Remove(remove_key);
+            GUI.changed = true;
+        }
+
+        _slots_remove_list.Clear();
+        if (GUILayout.Button("+", GUILayout.MaxWidth(50)))
+        {
+            var connectionData = NodeDataManager.Get(connection);
+            SlotData slotData = new SlotData();
+            slotData.SetupConnect(connectionData);
+            connection.slotList.Add(slotData);
+            GUI.changed = true;
+        }
+    }
+
+    public static void UpdateSubWindow(BaseNode node)
+    {
+        _subTitle = "node info";
+        _curSubView = SubViewType.Node;
+
+        //取消聚焦
+        GUI.FocusControl(null);
+    }
+
+    public static void UpdateSubWindow(Connection connection)
+    {
+        _subTitle = "connection info";
+        _curSubView = SubViewType.Connection;
+
+        //取消聚焦
+        GUI.FocusControl(null);
     }
 
     public static void Reset()
     {
         BTEditorManager.Clear();
-    }
-
-    public static void CreateNode(NodeLuaInfo root_logic)
-    {
-       
     }
 
     private void ProcessMainEvents(Event e)
@@ -244,47 +298,31 @@ public class BTEditorWindow : EditorWindow
         }
         else
         {
-            ProcessNodeWindowEvents(e);
+            ProcessMainWindowEvents(e);
         }
     }
 
-    public void ProcessSubWindowEvents(Event e)
+    public void ProcessMainWindowEvents(Event e)
     {
-    }
+        if (BTEditorManager.ProcessEvents(Event.current))
+        {
+            return;
+        }
 
-    public void ProcessNodeWindowEvents(Event e)
-    {
-        //logic node 
-        BTEditorManager.ProcessEvents(Event.current);
-
-        //main editor
         switch (e.type)
         {
             case EventType.MouseDown:
-                if (e.button == 0)
-                {
-
-                    BTEditorManager.ClearConnectionSelection();
-                }
-
-                if (e.button == 1)
-                {
-                    ProcessContextMenu(e.mousePosition);
-                }
                 break;
-
             case EventType.MouseUp:
                 if (e.button == 0)
                 {
                     BTEditorManager.ClearConnectionSelection();
                 }
-
                 if (e.button == 1)
                 {
                     ProcessContextMenu(e.mousePosition);
                 }
                 break;
-
             case EventType.MouseDrag:
                 if (e.button == 0)
                 {
@@ -292,5 +330,9 @@ public class BTEditorWindow : EditorWindow
                 }
                 break;
         }
+    }
+
+    public void ProcessSubWindowEvents(Event e)
+    {
     }
 }

@@ -1,9 +1,11 @@
 public enum NodeType
 {
-    BehaviourNode = 1,
+    BaseNode = 1,
+    BehaviourNode,
     DecoratorNode,
     ConditionNode,
     ConditionWaitNode,
+    ExcelNode,
     ActionNode,
     WaitNode,
     SequenceNode,

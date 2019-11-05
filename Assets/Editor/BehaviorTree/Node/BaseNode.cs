@@ -4,67 +4,48 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
-public class BaseNode
+public class BaseNode : BTObject
 {
-    public int id;
-
     public string name;
-
-    public string title;
-
-    public string desc;
-
-    public string type = "BaseNode";
-
+    public NodeType type = NodeType.BaseNode;
+    public ConnectionPoint inPoint;
+    public ConnectionPoint outPoint;
     public Dictionary<string, List<string>> properties;
 
-    public int properties_total_id;
-
+    public string desc;
+    public Rect rect;
+    public bool isDragged;
+    public GUIStyle style;
+    public float node_width = 120;
+    public float node_height = 50;
     public List<BaseNode> childs;
 
-    public Rect rect;
+    protected Action<BaseNode> onClickSelf;
 
-    public bool isDragged;
-
-    public GUIStyle style;
-
-    public float node_width = 120;
-
-    public float node_height = 50;
-
-    public ConnectionPoint inPoint;
-
-    public ConnectionPoint outPoint;
-
-    private Action<BaseNode> _onClickSelf;
-
-    public BaseNode(Vector2 position, Action<BaseNode> OnClickSelf, Action<ConnectionPoint> OnClickInPoint, Action<ConnectionPoint> OnClickOutPoint)
+    public BaseNode()
     {
-        childs = new List<BaseNode>();
-        properties = new Dictionary<string, List<string>>();
-        properties_total_id = 0;
-        style = BTEditorWindow.nodeStyle;
-        rect = new Rect(position.x, position.y, node_width, node_height);
-        inPoint = new ConnectionPoint(this, ConnectionPointType.In, OnClickInPoint);
-        outPoint = new ConnectionPoint(this, ConnectionPointType.Out, OnClickOutPoint);
-        _onClickSelf = OnClickSelf;
+        base.GenId();
+        this.childs = new List<BaseNode>();
+        this.properties = new Dictionary<string, List<string>>();
+        this.style = BTEditorWindow.nodeStyle;
     }
 
-    public void InitLogic()
+    public virtual void Init(Vector2 position, Action<BaseNode> OnClickSelf)
     {
-        id = BTEditorManager.node_total_id;
-        name = type + "_" + id;
-        title = name;
-        NodeData.Add(this);
+        this.name = type + "_" + id;
+        this.rect = new Rect(position.x, position.y, node_width, node_height);
+        this.inPoint = BTEditorManager.CreateConnectionPoint(this, ConnectionPointType.In);
+        this.outPoint = BTEditorManager.CreateConnectionPoint(this, ConnectionPointType.Out);
+        this.onClickSelf = OnClickSelf;
     }
 
-    public void Draw()
+    public virtual void Draw()
     {
+        //连接点
         inPoint.Draw();
-
         outPoint.Draw();
-
-        GUI.Box(rect, type, style);
+        //节点框
+        GUI.Box(rect, name.ToString(), style);
     }
 
     public bool ProcessEvents(Event e)
@@ -76,9 +57,15 @@ public class BaseNode
                 {
                     if (e.button == 0)
                     {
-                        _onClickSelf(this);
+                        //单击节点（左键）
+                        onClickSelf(this);
                         isDragged = true;
                         GUI.changed = true;
+                    }
+                    else if (e.button == 1)
+                    {
+                        //单击节点（右键）
+                        ProcessContextMenu(e.mousePosition);
                     }
                 }
                 else
@@ -90,7 +77,6 @@ public class BaseNode
             case EventType.MouseUp:
                 isDragged = false;
                 break;
-
             case EventType.MouseDrag:
                 if (e.button == 0 && isDragged)
                 {
@@ -102,6 +88,16 @@ public class BaseNode
         }
 
         return false;
+    }
+
+    private void ProcessContextMenu(Vector2 mousePosition)
+    {
+        GenericMenu genericMenu = new GenericMenu();
+        genericMenu.AddItem(new GUIContent("Delete Node"), false, () =>
+        {
+
+        });
+        genericMenu.ShowAsContext();
     }
 
     public void Drag(Vector2 delta)

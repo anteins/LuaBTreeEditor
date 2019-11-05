@@ -6,15 +6,9 @@ using UnityEditor;
 
 public class WaitNode : BaseNode
 {
-    public WaitNode(Vector2 position,
-        Action<BaseNode> OnClickSelf, 
-        Action<ConnectionPoint> OnClickInPoint, 
-        Action<ConnectionPoint> OnClickOutPoint) : base(position, OnClickSelf, OnClickInPoint, OnClickOutPoint)
+    public WaitNode() : base()
     {
-        type = "WaitNode";
-
+        type = NodeType.WaitNode;
         desc = "WaitNode desc...";
-
-        InitLogic();
     }
 }

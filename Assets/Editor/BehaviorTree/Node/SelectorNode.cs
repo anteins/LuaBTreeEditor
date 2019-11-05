@@ -6,15 +6,9 @@ using UnityEditor;
 
 public class SelectorNode : BaseNode
 {
-    public SelectorNode(Vector2 position,
-        Action<BaseNode> OnClickSelf,
-        Action<ConnectionPoint> OnClickInPoint,
-        Action<ConnectionPoint> OnClickOutPoint) : base(position, OnClickSelf, OnClickInPoint, OnClickOutPoint)
+    public SelectorNode() : base()
     {
-        type = "SelectorNode";
-
+        type = NodeType.SelectorNode;
         desc = "SelectorNode desc...";
-
-        InitLogic();
     }
 }
